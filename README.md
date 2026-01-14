@@ -106,7 +106,7 @@ CONNECTION_STRING="SharePointOnlineEndpoint=https://...;ApplicationId=...;Federa
 ```bash
 DATASOURCE_NAME=sharepoint-datasource
 CONTAINER_NAME=useQuery
-CONTAINER_QUERY=includeLibrariesInSite=https://geertbaekehotmail.sharepoint.com
+CONTAINER_QUERY=includeLibrariesInSite=https://yoursharepoint.sharepoint.com
 RESOURCE_PREFIX=sp-custom  # Prefix for index/datasource/skillset/indexer names
 ```
 
