@@ -213,6 +213,7 @@ KNOWLEDGE_BASE_NAME=sp-custom-kb  # Optional, defaults to {RESOURCE_PREFIX}-kb
 **Query endpoints:**
 - REST API: `POST {search-endpoint}/knowledgebases/sp-custom-kb/retrieve`
 - MCP: `{search-endpoint}/knowledgebases/sp-custom-kb/mcp`
+  - This only works with Foundry Agents
 
 ### 7. Query the Knowledge Base
 
