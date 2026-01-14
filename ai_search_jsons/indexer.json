@@ -1,0 +1,35 @@
+{
+  "@odata.context": "https://AISEARCH.search.windows.net/$metadata#indexers/$entity",
+  "@odata.etag": "\"0x8DE4E15737991F1\"",
+  "name": "sharepoint-datasource-ks-indexer",
+  "description": "Indexer for knowledge source 'sharepoint-datasource-ks'",
+  "dataSourceName": "sharepoint-datasource-ks-datasource",
+  "skillsetName": "sharepoint-datasource-ks-skillset",
+  "targetIndexName": "sharepoint-datasource-ks-index",
+  "disabled": false,
+  "schedule": {
+    "interval": "P1D",
+    "startTime": "2026-01-07T16:42:42.454Z"
+  },
+  "parameters": {
+    "batchSize": null,
+    "maxFailedItems": -1,
+    "maxFailedItemsPerBatch": -1,
+    "configuration": {
+      "dataToExtract": "contentAndMetadata",
+      "parsingMode": "default",
+      "allowSkillsetToReadFileData": true,
+      "imageAction": "generateNormalizedImages"
+    }
+  },
+  "fieldMappings": [
+    {
+      "sourceFieldName": "metadata_spo_item_path",
+      "targetFieldName": "doc_url",
+      "mappingFunction": null
+    }
+  ],
+  "outputFieldMappings": [],
+  "cache": null,
+  "encryptionKey": null
+}

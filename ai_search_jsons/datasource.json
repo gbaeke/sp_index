@@ -1,0 +1,20 @@
+{
+  "@odata.context": "https://AISEARCH.search.windows.net/$metadata#datasources/$entity",
+  "@odata.etag": "\"0x8DE4E15685EAD1C\"",
+  "name": "sharepoint-datasource-ks-datasource",
+  "description": null,
+  "type": "sharepoint",
+  "subtype": null,
+  "indexerPermissionOptions": [],
+  "credentials": {
+    "connectionString": "SharePointOnlineEndpoint=https://YOURSP.sharepoint.com/;ApplicationId=YOURAPPID;TenantId=YOURTENANDID;"
+  },
+  "container": {
+    "name": "defaultSiteLibrary",
+    "query": null
+  },
+  "dataChangeDetectionPolicy": null,
+  "dataDeletionDetectionPolicy": null,
+  "encryptionKey": null,
+  "identity": null
+}

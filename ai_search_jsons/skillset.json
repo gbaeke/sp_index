@@ -1,0 +1,166 @@
+{
+  "@odata.etag": "\"0x8DE4E0BC70D7FCA\"",
+  "name": "sharepoint-datasource-ks-skillset",
+  "description": "Skillset for knowledge source 'sharepoint-datasource-ks'",
+  "skills": [
+    {
+      "@odata.type": "#Microsoft.Skills.Text.SplitSkill",
+      "name": "SplitSkill",
+      "description": "Split document content into chunks",
+      "context": "/document",
+      "defaultLanguageCode": "en",
+      "textSplitMode": "pages",
+      "maximumPageLength": 2000,
+      "pageOverlapLength": 200,
+      "maximumPagesToTake": 0,
+      "unit": "characters",
+      "inputs": [
+        {
+          "name": "text",
+          "source": "/document/content",
+          "inputs": []
+        }
+      ],
+      "outputs": [
+        {
+          "name": "textItems",
+          "targetName": "pages"
+        }
+      ]
+    },
+    {
+      "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIEmbeddingSkill",
+      "name": "AzureOpenAIEmbeddingSkill",
+      "description": "Generate embeddings",
+      "context": "/document/pages/*",
+      "resourceUri": "https://COG.cognitiveservices.azure.com",
+      "apiKey": "<redacted>",
+      "deploymentId": "text-embedding-3-small",
+      "dimensions": 1536,
+      "modelName": "text-embedding-3-small",
+      "inputs": [
+        {
+          "name": "text",
+          "source": "/document/pages/*",
+          "inputs": []
+        }
+      ],
+      "outputs": [
+        {
+          "name": "embedding",
+          "targetName": "text_vector"
+        }
+      ]
+    },
+    {
+      "@odata.type": "#Microsoft.Skills.Custom.ChatCompletionSkill",
+      "name": "GenAISkill",
+      "description": "Generate chat responses for image verbalization",
+      "context": "/document/normalized_images/*",
+      "uri": "https://COG.cognitiveservices.azure.com/openai/deployments/gpt-4.1/chat/completions?api-version=2024-10-21",
+      "httpMethod": "POST",
+      "timeout": "PT1M",
+      "batchSize": 1,
+      "apiKey": "<redacted>",
+      "inputs": [
+        {
+          "name": "systemMessage",
+          "source": "='You are tasked with generating concise, accurate descriptions of images, figures, diagrams, or charts in documents.'",
+          "inputs": []
+        },
+        {
+          "name": "userMessage",
+          "source": "='Please describe this image.'",
+          "inputs": []
+        },
+        {
+          "name": "image",
+          "source": "/document/normalized_images/*/data",
+          "inputs": []
+        }
+      ],
+      "outputs": [
+        {
+          "name": "response",
+          "targetName": "verbalizedImage"
+        }
+      ],
+      "httpHeaders": {}
+    },
+    {
+      "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIEmbeddingSkill",
+      "name": "VerbalizedImageAzureOpenAIEmbeddingSkill",
+      "description": "Generate embeddings",
+      "context": "/document/normalized_images/*",
+      "resourceUri": "https://COG.cognitiveservices.azure.com",
+      "apiKey": "<redacted>",
+      "deploymentId": "text-embedding-3-small",
+      "dimensions": 1536,
+      "modelName": "text-embedding-3-small",
+      "inputs": [
+        {
+          "name": "text",
+          "source": "/document/normalized_images/*/verbalizedImage",
+          "inputs": []
+        }
+      ],
+      "outputs": [
+        {
+          "name": "embedding",
+          "targetName": "verbalizedImage_vector"
+        }
+      ]
+    }
+  ],
+  "indexProjections": {
+    "selectors": [
+      {
+        "targetIndexName": "sharepoint-datasource-ks-index",
+        "parentKeyFieldName": "snippet_parent_id",
+        "sourceContext": "/document/pages/*",
+        "mappings": [
+          {
+            "name": "snippet_vector",
+            "source": "/document/pages/*/text_vector",
+            "inputs": []
+          },
+          {
+            "name": "snippet",
+            "source": "/document/pages/*",
+            "inputs": []
+          },
+          {
+            "name": "doc_url",
+            "source": "/document/doc_url",
+            "inputs": []
+          }
+        ]
+      },
+      {
+        "targetIndexName": "sharepoint-datasource-ks-index",
+        "parentKeyFieldName": "image_snippet_parent_id",
+        "sourceContext": "/document/normalized_images/*",
+        "mappings": [
+          {
+            "name": "snippet_vector",
+            "source": "/document/normalized_images/*/verbalizedImage_vector",
+            "inputs": []
+          },
+          {
+            "name": "snippet",
+            "source": "/document/normalized_images/*/verbalizedImage",
+            "inputs": []
+          },
+          {
+            "name": "doc_url",
+            "source": "/document/doc_url",
+            "inputs": []
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "projectionMode": "skipIndexingParentDocuments"
+    }
+  }
+}

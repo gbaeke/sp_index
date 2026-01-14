@@ -1,0 +1,85 @@
+Create a clean, professional architecture diagram showing the 7-step setup process for SharePoint Azure AI Search with agentic retrieval. Use a modern, technical style with clear icons and flow arrows.
+
+The diagram should show these 7 sequential steps from left to right or top to bottom:
+
+STEP 1: "Create Azure Resources"
+- Show: Azure AI Search service (with system-assigned managed identity icon)
+- Show: Azure AI Foundry resource (S0 SKU)
+- Show: Foundry project
+- Show: Two model deployments below:
+  * text-embedding-3-small (embedding model icon)
+  * gpt-4.1 (chat model icon)
+- Script: create_resources.sh
+- Arrow pointing to .env file output
+
+STEP 2: "Create App Registration"
+- Show: Azure AD App Registration icon labeled "SPIndexer"
+- Show: Three Microsoft Graph permission badges:
+  * Files.Read.All
+  * Sites.FullControl.All
+  * Sites.Read.All
+- Show: Federated credential linking to AI Search managed identity (dotted line)
+- Show: SharePoint icon connected with authentication arrow
+- Script: create_sp_app_registration.sh
+- Arrow pointing to .env file output
+
+STEP 3: "Configure .env"
+- Show: .env file icon with key configuration items listed:
+  * SEARCH_ENDPOINT
+  * EMBEDDING_ENDPOINT/KEY
+  * CHAT_ENDPOINT/KEY
+  * CONNECTION_STRING
+  * RESOURCE_PREFIX
+
+STEP 4: "Create Index Pipeline"
+- Show: Data Source icon (SharePoint connector)
+- Show: Index icon with fields:
+  * snippet (text chunks)
+  * snippet_vector (embeddings)
+  * metadata fields (author, date, title, web URL)
+- Show: Skillset icon with:
+  * Document chunking
+  * Vector embeddings
+  * Image verbalization
+- Show: Indexer icon (orchestration)
+- Script: create_index.py
+- Show arrow from SharePoint documents flowing through this pipeline
+
+STEP 5: "Create Knowledge Source"
+- Show: searchIndex Knowledge Source wrapper icon
+- Show it wrapping/referencing the index from Step 4
+- List: Source data fields, Search fields
+- Script: create_knowledge_source.py
+- Resource: sp-custom-ks
+
+STEP 6: "Create Knowledge Base"
+- Show: Knowledge Base icon
+- Show it referencing the knowledge source from Step 5
+- Show connection to chat model (gpt-4.1) for answer synthesis
+- Show: Retrieval + Answer instructions configuration
+- Script: create_knowledge_base.py
+- Resource: sp-custom-kb
+
+STEP 7: "Query & Retrieve"
+- Show: User/Application icon
+- Show: Natural language query arrow
+- Show: Knowledge Base processing with agentic retrieval
+- Show: Response with:
+  * Synthesized answer
+  * Source citations
+  * Document references with metadata
+- Script: query_kb.py
+- Show example: "What are the latest updates?" → AI Answer + Citations
+
+Visual styling:
+- Use Azure blue (#0078D4) for Azure services
+- Use green (#107C10) for successful connections/authentication
+- Use orange/amber for AI/ML components (models, embeddings)
+- Use purple for SharePoint components
+- Use clean, modern icons (simple line art or flat design)
+- Show clear directional arrows between steps (→)
+- Use dotted lines for authentication/federated connections
+- Group related components with subtle background boxes
+- Add "Managed Identity Authentication (Keyless)" badge near the federated credential connection
+
+The final diagram should clearly show the flow from infrastructure → authentication → indexing → knowledge base → query/retrieval, emphasizing that this is a complete end-to-end solution for SharePoint agentic RAG.

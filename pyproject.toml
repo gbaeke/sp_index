@@ -1,0 +1,21 @@
+[project]
+name = "anb-sp-index"
+version = "0.1.0"
+description = "Azure AI Search SharePoint Knowledge Source Creator"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "azure-search-documents>=11.7.0b2",
+    "azure-core>=1.30.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+create-ks = "create_knowledge_source:main"
+manage-ks = "manage_knowledge_source:main"
+setup-foundry = "setup_foundry_config:main"
+verify = "verify_setup:main"
+
+[tool.uv]
+dev-dependencies = []
