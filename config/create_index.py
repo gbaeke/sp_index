@@ -39,6 +39,8 @@ def load_config():
         "container_name": os.getenv("CONTAINER_NAME", "useQuery"),
         "container_query": os.getenv("CONTAINER_QUERY"),  # e.g., includeLibrariesInSite=https://...
         "additional_columns": os.getenv("ADDITIONAL_COLUMNS", "Department"),  # Comma-separated custom columns
+        # ACL support
+        "enable_acl": os.getenv("ENABLE_ACL", "true").lower() in ["true", "1", "yes"],
         # Resource naming
         "resource_prefix": os.getenv("RESOURCE_PREFIX", "sp-custom"),
         # Embedding model (Azure OpenAI / Foundry)
@@ -128,6 +130,11 @@ def create_datasource(config):
         }
     }
     
+    # Add ACL ingestion if enabled
+    if config.get("enable_acl"):
+        datasource["indexerPermissionOptions"] = ["userIds", "groupIds"]
+        print(f"   🔒 ACL ingestion enabled (userIds, groupIds)")
+    
     response = make_request(config, "PUT", f"/datasources/{config['datasource_name']}", datasource)
     
     if response.status_code in [200, 201, 204]:
@@ -145,11 +152,9 @@ def create_index(config):
     
     prefix = config["resource_prefix"]
     
-    index = {
-        "name": config["index_name"],
-        "description": "SharePoint index with custom metadata fields for agentic retrieval",
-        "fields": [
-            # Key field
+    # Build fields list
+    fields = [
+        # Key field
             {
                 "name": "uid",
                 "type": "Edm.String",
@@ -354,12 +359,54 @@ def create_index(config):
                 "sortable": True,
                 "facetable": True
             },
-        ],
+        ]
+    
+    # Add ACL fields if enabled
+    if config.get("enable_acl"):
+        acl_fields = [
+            # User IDs for document-level access control
+            {
+                "name": "UserIds",
+                "type": "Collection(Edm.String)",
+                "permissionFilter": "userIds",
+                "filterable": True,
+                "retrievable": True,  # Set to false in production for security
+                "searchable": False,
+                "sortable": False,
+                "facetable": False
+            },
+            # Group IDs for document-level access control
+            {
+                "name": "GroupIds",
+                "type": "Collection(Edm.String)",
+                "permissionFilter": "groupIds",
+                "filterable": True,
+                "retrievable": True,  # Set to false in production for security
+                "searchable": False,
+                "sortable": False,
+                "facetable": False
+            },
+        ]
+        fields.extend(acl_fields)
+        print(f"   🔒 ACL fields added to index (UserIds, GroupIds)")
+    
+    # Build index definition
+    index = {
+        "name": config["index_name"],
+        "description": "SharePoint index with custom metadata fields for agentic retrieval",
+        "fields": fields,
         "similarity": {
             "@odata.type": "#Microsoft.Azure.Search.BM25Similarity"
         },
-        # Semantic configuration (required for agentic retrieval)
-        "semantic": {
+    }
+    
+    # Add permission filter option if ACL is enabled
+    if config.get("enable_acl"):
+        index["permissionFilterOption"] = "enabled"
+        print(f"   🔒 Permission filtering enabled")
+    
+    # Add semantic configuration (required for agentic retrieval)
+    index["semantic"] = {
             "defaultConfiguration": f"{prefix}-semantic-configuration",
             "configurations": [
                 {
@@ -375,10 +422,11 @@ def create_index(config):
                     }
                 }
             ]
-        },
-        # Vector search configuration
-        "vectorSearch": {
-            "algorithms": [
+        }
+    
+    # Add vector search configuration
+    index["vectorSearch"] = {
+        "algorithms": [
                 {
                     "name": f"{prefix}-vector-search-algorithm",
                     "kind": "hnsw",
@@ -420,7 +468,7 @@ def create_index(config):
                 }
             ]
         }
-    }
+
     
     response = make_request(config, "PUT", f"/indexes/{config['index_name']}", index)
     
@@ -481,7 +529,9 @@ def create_skillset(config):
     ]
     
     # Add image verbalization skills if chat model is configured
-    if config.get("chat_endpoint") and config.get("chat_key") and config.get("chat_deployment"):
+    # NOTE: ACL ingestion is incompatible with ChatCompletionSkill in preview
+    # Image verbalization is automatically disabled when ACL is enabled
+    if config.get("chat_endpoint") and config.get("chat_key") and config.get("chat_deployment") and not config.get("enable_acl"):
         # Image verbalization
         skills.append({
             "@odata.type": "#Microsoft.Skills.Custom.ChatCompletionSkill",
@@ -551,6 +601,14 @@ def create_skillset(config):
         }
     ]
     
+    # Add ACL mappings to text chunks if ACL is enabled
+    if config.get("enable_acl"):
+        selectors[0]["mappings"].extend([
+            {"name": "UserIds", "source": "/document/metadata_user_ids"},
+            {"name": "GroupIds", "source": "/document/metadata_group_ids"},
+        ])
+        print("   🔒 ACL mappings added to text chunks")
+    
     # Add image projection if chat model is configured
     if config.get("chat_endpoint") and config.get("chat_key") and config.get("chat_deployment"):
         selectors.append({
@@ -578,6 +636,14 @@ def create_skillset(config):
                 {"name": "Department", "source": "/document/Department"},
             ]
         })
+        
+        # Add ACL mappings to image chunks if ACL is enabled
+        if config.get("enable_acl"):
+            selectors[-1]["mappings"].extend([
+                {"name": "UserIds", "source": "/document/metadata_user_ids"},
+                {"name": "GroupIds", "source": "/document/metadata_group_ids"},
+            ])
+            print("   🔒 ACL mappings added to image chunks")
     
     skillset = {
         "name": config["skillset_name"],
@@ -623,7 +689,7 @@ def create_indexer(config):
                 "dataToExtract": "contentAndMetadata",
                 "parsingMode": "default",
                 "allowSkillsetToReadFileData": True,
-                "imageAction": "generateNormalizedImages" if config.get("chat_deployment") else "none"
+                "imageAction": "generateNormalizedImages" if (config.get("chat_deployment") and not config.get("enable_acl")) else "none"
             }
         },
         "fieldMappings": [
@@ -634,9 +700,28 @@ def create_indexer(config):
             }
             # Note: Custom SharePoint columns from additionalColumns are auto-mapped
             # to fields with matching names (e.g., Department -> metadata_Department needs no mapping)
-        ],
-        "outputFieldMappings": []
+        ]
     }
+    
+    # Add ACL field mappings if enabled
+    if config.get("enable_acl"):
+        indexer["fieldMappings"].extend([
+            {
+                "sourceFieldName": "metadata_user_ids",
+                "targetFieldName": "UserIds"
+            },
+            {
+                "sourceFieldName": "metadata_group_ids",
+                "targetFieldName": "GroupIds"
+            }
+        ])
+        print(f"   🔒 ACL field mappings added (metadata_user_ids -> UserIds, metadata_group_ids -> GroupIds)")
+    
+    indexer["outputFieldMappings"] = []
+    
+    # Warn if image verbalization is skipped due to ACL
+    if config.get("enable_acl") and config.get("chat_deployment"):
+        print("   ⚠️  Image verbalization disabled (incompatible with ACL in preview)")
     
     response = make_request(config, "PUT", f"/indexers/{config['indexer_name']}", indexer)
     
@@ -759,6 +844,7 @@ def main():
     print(f"  Resource Prefix: {config['resource_prefix']}")
     print(f"  Embedding Model: {config['embedding_model']}")
     print(f"  Image Verbalization: {'Enabled' if config.get('chat_deployment') else 'Disabled'}")
+    print(f"  ACL Support: {'Enabled' if config.get('enable_acl') else 'Disabled'}")
     
     if args.delete:
         delete_resources(config)

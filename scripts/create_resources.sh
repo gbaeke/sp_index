@@ -119,8 +119,10 @@ az search service create \
   --replica-count "$SEARCH_REPLICA_COUNT" \
   --partition-count "$SEARCH_PARTITION_COUNT" \
   --identity-type SystemAssigned \
+  --auth-options aadOrApiKey \
+  --aad-auth-failure-mode http403 \
   --tags BusinessOwner="$BUSINESS_OWNER" TechnicalOwner="$TECHNICAL_OWNER"
-echo "Search service '$SEARCH_SERVICE_NAME' is ready."
+echo "Search service '$SEARCH_SERVICE_NAME' is ready with Azure AD authentication enabled."
 
 # Create Azure AI Foundry resource and project
 echo "\nChecking whether Azure AI Foundry resource '$FOUNDRY_RESOURCE_NAME' exists in resource group '$RG'..."

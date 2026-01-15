@@ -1,0 +1,12 @@
+{
+  "Name": "Search Elevated Read",
+  "Description": "Can perform elevated read operations to bypass ACL filtering for debugging",
+  "Actions": [],
+  "DataActions": [
+    "Microsoft.Search/searchServices/indexes/contentSecurity/elevatedOperations/read"
+  ],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/d1d3dadc-bc2a-4495-b8dd-70443d1c70d1/resourceGroups/rg-geba-sp/providers/Microsoft.Search/searchServices/ais-geba-sp"
+  ]
+}
