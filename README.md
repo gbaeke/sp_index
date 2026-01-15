@@ -2,6 +2,66 @@
 
 Automated deployment scripts for Azure AI Search with SharePoint integration using Azure AI Foundry and managed identity authentication.
 
+## ⚠️ Important: ACL Implementation Choice
+
+**You must decide upfront whether to enable document-level access control (ACL).**
+
+### Option 1: ACL Disabled (Simpler, Public Access)
+
+✅ **Use when:**
+- All indexed documents should be accessible to all users
+- You want simpler indexing and querying
+- You don't need SharePoint permission enforcement
+
+✅ **Configuration:**
+```bash
+ENABLE_ACL=false  # or omit from .env
+API_VERSION=2024-11-01-preview  # Standard version
+```
+
+✅ **Querying:** Standard search queries without user tokens
+
+### Option 2: ACL Enabled (Secure, Permission-Aware)
+
+🔒 **Use when:**
+- Documents should only be visible to users with SharePoint access
+- You need to enforce SharePoint permissions in search results
+- Compliance requires document-level authorization
+
+⚠️ **Limitations:**
+- **SharePoint groups NOT supported** - Only Microsoft Entra ID groups work
+- Numeric SharePoint user/group IDs are NOT resolved
+- ACL changes require manual reindexing (not automatic)
+- Higher query latency due to permission resolution
+- Requires API version `2025-11-01-preview`
+
+🔒 **Configuration:**
+```bash
+ENABLE_ACL=true
+API_VERSION=2025-11-01-preview  # Required for ACL support
+```
+
+🔒 **Querying:** Must include user token in query headers:
+```http
+Authorization: Bearer {service-token}
+x-ms-query-source-authorization: {user-token}  # No "Bearer" prefix
+```
+
+🔒 **Debugging:** Use elevated read to bypass ACL (requires custom RBAC role):
+```bash
+# Create custom role with elevated permissions
+az role definition create --role-definition scripts/elevated-read-role.json
+
+# Assign to your user
+az role assignment create --assignee {your-user-oid} \
+  --role "Search Elevated Read" \
+  --scope /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.Search/searchServices/{service}
+
+# Query with elevated read (bypasses ACL for debugging)
+uv run config/query_elevated.py
+```
+
+**Note:** You cannot change this setting after indexing without recreating the index.
 
 ## Diagram
 
@@ -108,7 +168,13 @@ DATASOURCE_NAME=sharepoint-datasource
 CONTAINER_NAME=useQuery
 CONTAINER_QUERY=includeLibrariesInSite=https://yoursharepoint.sharepoint.com
 RESOURCE_PREFIX=sp-custom  # Prefix for index/datasource/skillset/indexer names
+
+# ACL Configuration (choose one option)
+ENABLE_ACL=false  # Option 1: No ACL (all documents public)
+# ENABLE_ACL=true  # Option 2: ACL enabled (permission-aware)
 ```
+
+**Important:** Set `ENABLE_ACL` before running create_index.py. This cannot be changed without recreating the index.
 
 ### 4. Create SharePoint Index and Indexer
 
@@ -251,6 +317,35 @@ uv run query_kb.py --filter "Department eq 'IT'" "What are the IT policies?"
 - Source citations with metadata (author, title, web URL, date)
 - Document references with relevance scores
 - Filtered results based on custom SharePoint columns (Department, etc.)
+
+### 8. Query with ACL Support (If ENABLE_ACL=true)
+
+If you enabled ACL support, query with user-specific permission filtering:
+
+```bash
+cd config
+
+# Query as authenticated user (returns only documents you have access to)
+uv run query_acl.py
+
+# Query with elevated read (bypasses ACL for debugging - requires custom RBAC role)
+uv run query_elevated.py
+
+# Inspect ACL metadata in documents
+uv run inspect_acls.py
+```
+
+**ACL Query Behavior:**
+- `query_acl.py` - Returns documents matching your SharePoint permissions (0 results if no access)
+- `query_elevated.py` - Bypasses ACL to see all documents (requires custom "Search Elevated Read" role)
+- Uses your Azure AD token to match against document UserIds/GroupIds
+- Only Microsoft Entra ID groups are matched (SharePoint groups ignored)
+
+**ACL Limitations:**
+- First query may be slow (permission resolution via Microsoft Graph API)
+- SharePoint group memberships (numeric IDs) are NOT resolved
+- Only Microsoft Entra group GUIDs work
+- ACL changes in SharePoint require manual reindexing
 
 ## Cleanup
 
