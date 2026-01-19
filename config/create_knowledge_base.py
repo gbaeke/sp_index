@@ -16,7 +16,6 @@ for chat completion/reasoning.
 """
 
 import os
-import sys
 from .shared import load_base_env
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.indexes import SearchIndexClient
@@ -145,7 +144,7 @@ def main():
     print("\n" + "=" * 70)
     print("Knowledge base creation completed.")
     print("=" * 70)
-    print(f"\nYou can now query the knowledge base using:")
+    print("\nYou can now query the knowledge base using:")
     print(f"  - REST API: POST {search_endpoint}/knowledgebases/{knowledge_base_name}/retrieve")
     print(f"  - MCP endpoint: {search_endpoint}/knowledgebases/{knowledge_base_name}/mcp")
 
