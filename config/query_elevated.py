@@ -41,9 +41,8 @@ def get_auth_headers():
     
     # Debug: Print token info
     import jwt
-    import json
     decoded = jwt.decode(token.token, options={"verify_signature": False})
-    print(f"🔑 Token Info:")
+    print("🔑 Token Info:")
     print(f"   Issued for: {decoded.get('oid', 'N/A')} ({decoded.get('upn', decoded.get('unique_name', 'N/A'))})")
     print(f"   App ID: {decoded.get('appid', 'N/A')}")
     print(f"   Audience: {decoded.get('aud', 'N/A')}")
@@ -113,7 +112,7 @@ def query(config):
                 if len(user_ids) > 2:
                     print(f"      ... +{len(user_ids) - 2} more")
             else:
-                print(f"   ⚠️  UserIds: empty")
+                print("   ⚠️  UserIds: empty")
             
             if group_ids:
                 print(f"   👥 GroupIds: {len(group_ids)} entries")
@@ -122,7 +121,7 @@ def query(config):
                 if len(group_ids) > 2:
                     print(f"      ... +{len(group_ids) - 2} more")
             else:
-                print(f"   ⚠️  GroupIds: empty")
+                print("   ⚠️  GroupIds: empty")
             
             snippet = doc.get("snippet", "")
             if snippet:
@@ -136,7 +135,7 @@ def query(config):
     except requests.exceptions.HTTPError as e:
         print(f"❌ HTTP {e.response.status_code}")
         print(f"Response: {e.response.text}")
-        print(f"\n🔐 Full Token for debugging:")
+        print("\n🔐 Full Token for debugging:")
         print(token.token)
         if e.response.status_code == 403:
             print("Required RBAC: Search Index Data Reader")

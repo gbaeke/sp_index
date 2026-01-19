@@ -16,7 +16,7 @@ for chat completion/reasoning.
 """
 
 import os
-from dotenv import load_dotenv
+from .shared import load_base_env
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -36,7 +36,7 @@ def main():
 
     # Load configuration from .env
     print("\n1. Loading configuration from .env...")
-    load_dotenv()
+    load_base_env()
 
     search_endpoint = os.getenv("SEARCH_ENDPOINT")
     api_key = os.getenv("API_KEY")
@@ -144,7 +144,7 @@ def main():
     print("\n" + "=" * 70)
     print("Knowledge base creation completed.")
     print("=" * 70)
-    print(f"\nYou can now query the knowledge base using:")
+    print("\nYou can now query the knowledge base using:")
     print(f"  - REST API: POST {search_endpoint}/knowledgebases/{knowledge_base_name}/retrieve")
     print(f"  - MCP endpoint: {search_endpoint}/knowledgebases/{knowledge_base_name}/mcp")
 

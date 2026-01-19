@@ -15,14 +15,12 @@ via a knowledge base.
 
 import os
 import sys
-import json
-import requests
-from dotenv import load_dotenv
+from .shared import load_base_env, validate_config, make_request
 
 
 def load_config():
     """Load configuration from .env file."""
-    load_dotenv()
+    load_base_env()
     
     config = {
         "search_endpoint": os.getenv("SEARCH_ENDPOINT"),
@@ -32,37 +30,13 @@ def load_config():
     }
     
     # Validate required configuration
-    required_fields = ["search_endpoint", "api_key"]
-    missing_fields = [field for field in required_fields if not config.get(field)]
-    if missing_fields:
-        print(f"Error: Missing required configuration: {', '.join(missing_fields)}")
-        sys.exit(1)
+    validate_config(config, ["search_endpoint", "api_key"])
     
     # Derive names
     config["index_name"] = f"{config['resource_prefix']}-index"
     config["knowledge_source_name"] = f"{config['resource_prefix']}-ks"
     
     return config
-
-
-def make_request(config, method, path, body=None):
-    """Make an HTTP request to Azure AI Search."""
-    url = f"{config['search_endpoint']}{path}"
-    params = {"api-version": config["api_version"]}
-    headers = {
-        "api-key": config["api_key"],
-        "Content-Type": "application/json",
-    }
-    
-    response = requests.request(
-        method=method,
-        url=url,
-        params=params,
-        headers=headers,
-        json=body,
-    )
-    
-    return response
 
 
 def create_knowledge_source(config):
@@ -111,19 +85,19 @@ def create_knowledge_source(config):
     
     if response.status_code in [200, 201, 204]:
         print(f"✓ Knowledge source '{config['knowledge_source_name']}' created or updated successfully.")
-        print(f"\nKnowledge source details:")
+        print("\nKnowledge source details:")
         print(f"  - Name: {config['knowledge_source_name']}")
         print(f"  - Index: {config['index_name']}")
-        print(f"\nSource data fields (for citations):")
+        print("\nSource data fields (for citations):")
         for field in source_data_fields:
             print(f"    - {field}")
-        print(f"\nSearch fields:")
+        print("\nSearch fields:")
         for field in search_fields:
             print(f"    - {field}")
         # Return JSON if available, else return empty dict
         try:
             return response.json() if response.text else {}
-        except:
+        except ValueError:
             return {}
     else:
         print(f"✗ Error creating knowledge source: {response.status_code}")
@@ -191,7 +165,7 @@ def main():
     
     config = load_config()
     
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Search Endpoint: {config['search_endpoint']}")
     print(f"  Index Name: {config['index_name']}")
     print(f"  Knowledge Source Name: {config['knowledge_source_name']}")
@@ -212,7 +186,7 @@ def main():
     print("\n" + "=" * 60)
     print("Next steps:")
     print(f"  1. Create a knowledge base that references '{config['knowledge_source_name']}'")
-    print(f"  2. Use the knowledge base with agentic retrieval")
+    print("  2. Use the knowledge base with agentic retrieval")
     print("=" * 60)
 
 

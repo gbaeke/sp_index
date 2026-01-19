@@ -15,12 +15,13 @@ Query Azure AI Search index with ACL filtering based on user identity.
 import os
 import sys
 import requests
-from dotenv import load_dotenv
+import jwt
+from .shared import load_base_env
 from azure.identity import DefaultAzureCredential
 
 
 def load_config():
-    load_dotenv()
+    load_base_env()
     resource_prefix = os.getenv("RESOURCE_PREFIX", "sp-custom")
     search_endpoint = os.getenv("SEARCH_ENDPOINT")
     
@@ -40,9 +41,8 @@ def get_auth_headers():
     token = credential.get_token("https://search.azure.com/.default")
     
     # Debug: Print token info
-    import jwt
     decoded = jwt.decode(token.token, options={"verify_signature": False})
-    print(f"🔑 Token Info:")
+    print("🔑 Token Info:")
     print(f"   User OID: {decoded.get('oid', 'N/A')}")
     print(f"   User: {decoded.get('upn', decoded.get('unique_name', 'N/A'))}")
     print(f"   Token expires: {decoded.get('exp', 'N/A')}")
@@ -114,7 +114,7 @@ def query(config):
                 if len(user_ids) > 2:
                     print(f"      ... +{len(user_ids) - 2} more")
             else:
-                print(f"   ⚠️  UserIds: empty")
+                print("   ⚠️  UserIds: empty")
             
             if group_ids:
                 print(f"   👥 GroupIds: {len(group_ids)} entries")
@@ -123,7 +123,7 @@ def query(config):
                 if len(group_ids) > 2:
                     print(f"      ... +{len(group_ids) - 2} more")
             else:
-                print(f"   ⚠️  GroupIds: empty")
+                print("   ⚠️  GroupIds: empty")
             
             snippet = doc.get("snippet", "")
             if snippet:
