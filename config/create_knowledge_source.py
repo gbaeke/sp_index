@@ -15,7 +15,6 @@ via a knowledge base.
 
 import os
 import sys
-import json
 from .shared import load_base_env, validate_config, make_request
 
 
@@ -86,13 +85,13 @@ def create_knowledge_source(config):
     
     if response.status_code in [200, 201, 204]:
         print(f"✓ Knowledge source '{config['knowledge_source_name']}' created or updated successfully.")
-        print(f"\nKnowledge source details:")
+        print("\nKnowledge source details:")
         print(f"  - Name: {config['knowledge_source_name']}")
         print(f"  - Index: {config['index_name']}")
-        print(f"\nSource data fields (for citations):")
+        print("\nSource data fields (for citations):")
         for field in source_data_fields:
             print(f"    - {field}")
-        print(f"\nSearch fields:")
+        print("\nSearch fields:")
         for field in search_fields:
             print(f"    - {field}")
         # Return JSON if available, else return empty dict
@@ -166,7 +165,7 @@ def main():
     
     config = load_config()
     
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Search Endpoint: {config['search_endpoint']}")
     print(f"  Index Name: {config['index_name']}")
     print(f"  Knowledge Source Name: {config['knowledge_source_name']}")
@@ -187,7 +186,7 @@ def main():
     print("\n" + "=" * 60)
     print("Next steps:")
     print(f"  1. Create a knowledge base that references '{config['knowledge_source_name']}'")
-    print(f"  2. Use the knowledge base with agentic retrieval")
+    print("  2. Use the knowledge base with agentic retrieval")
     print("=" * 60)
 
 

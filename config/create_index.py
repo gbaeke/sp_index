@@ -19,8 +19,6 @@ The resulting index can be used with a searchIndex knowledge source for agentic 
 """
 
 import os
-import sys
-import json
 from .shared import load_base_env, validate_config, make_request
 
 
@@ -88,8 +86,8 @@ def create_datasource(config):
     elif additional_cols and not query:
         # If no query but we have additional columns, we need a base query
         # User should set CONTAINER_QUERY in .env
-        print(f"   ⚠️  Warning: ADDITIONAL_COLUMNS set but no CONTAINER_QUERY. Custom columns may not be indexed.")
-        print(f"      Set CONTAINER_QUERY=includeLibrariesInSite=https://yoursite.sharepoint.com/sites/YourSite")
+        print("   ⚠️  Warning: ADDITIONAL_COLUMNS set but no CONTAINER_QUERY. Custom columns may not be indexed.")
+        print("      Set CONTAINER_QUERY=includeLibrariesInSite=https://yoursite.sharepoint.com/sites/YourSite")
     
     datasource = {
         "name": config["datasource_name"],
@@ -107,12 +105,12 @@ def create_datasource(config):
     # Add ACL ingestion if enabled
     if config.get("enable_acl"):
         datasource["indexerPermissionOptions"] = ["userIds", "groupIds"]
-        print(f"   🔒 ACL ingestion enabled (userIds, groupIds)")
+        print("   🔒 ACL ingestion enabled (userIds, groupIds)")
     
     response = make_request(config, "PUT", f"/datasources/{config['datasource_name']}", datasource)
     
     if response.status_code in [200, 201, 204]:
-        print(f"   ✓ Data source created successfully")
+        print("   ✓ Data source created successfully")
         return True
     else:
         print(f"   ✗ Error creating data source: {response.status_code}")
@@ -362,7 +360,7 @@ def create_index(config):
             },
         ]
         fields.extend(acl_fields)
-        print(f"   🔒 ACL fields added to index (UserIds, GroupIds)")
+        print("   🔒 ACL fields added to index (UserIds, GroupIds)")
     
     # Build index definition
     index = {
@@ -377,7 +375,7 @@ def create_index(config):
     # Add permission filter option if ACL is enabled
     if config.get("enable_acl"):
         index["permissionFilterOption"] = "enabled"
-        print(f"   🔒 Permission filtering enabled")
+        print("   🔒 Permission filtering enabled")
     
     # Add semantic configuration (required for agentic retrieval)
     index["semantic"] = {
@@ -447,7 +445,7 @@ def create_index(config):
     response = make_request(config, "PUT", f"/indexes/{config['index_name']}", index)
     
     if response.status_code in [200, 201, 204]:
-        print(f"   ✓ Index created successfully")
+        print("   ✓ Index created successfully")
         return True
     else:
         print(f"   ✗ Error creating index: {response.status_code}")
@@ -458,8 +456,6 @@ def create_index(config):
 def create_skillset(config):
     """Create the skillset for document processing."""
     print(f"\n🔧 Creating skillset: {config['skillset_name']}")
-    
-    prefix = config["resource_prefix"]
     
     # Build skills list
     skills = [
@@ -634,7 +630,7 @@ def create_skillset(config):
     response = make_request(config, "PUT", f"/skillsets/{config['skillset_name']}", skillset)
     
     if response.status_code in [200, 201, 204]:
-        print(f"   ✓ Skillset created successfully")
+        print("   ✓ Skillset created successfully")
         return True
     else:
         print(f"   ✗ Error creating skillset: {response.status_code}")
@@ -689,7 +685,7 @@ def create_indexer(config):
                 "targetFieldName": "GroupIds"
             }
         ])
-        print(f"   🔒 ACL field mappings added (metadata_user_ids -> UserIds, metadata_group_ids -> GroupIds)")
+        print("   🔒 ACL field mappings added (metadata_user_ids -> UserIds, metadata_group_ids -> GroupIds)")
     
     indexer["outputFieldMappings"] = []
     
@@ -700,7 +696,7 @@ def create_indexer(config):
     response = make_request(config, "PUT", f"/indexers/{config['indexer_name']}", indexer)
     
     if response.status_code in [200, 201, 204]:
-        print(f"   ✓ Indexer created successfully")
+        print("   ✓ Indexer created successfully")
         return True
     else:
         print(f"   ✗ Error creating indexer: {response.status_code}")
@@ -715,7 +711,7 @@ def run_indexer(config):
     response = make_request(config, "POST", f"/indexers/{config['indexer_name']}/run")
     
     if response.status_code == 202:
-        print(f"   ✓ Indexer started successfully")
+        print("   ✓ Indexer started successfully")
         return True
     else:
         print(f"   ✗ Error running indexer: {response.status_code}")
@@ -730,7 +726,7 @@ def reset_indexer(config):
     response = make_request(config, "POST", f"/indexers/{config['indexer_name']}/reset")
     
     if response.status_code in [204, 202]:
-        print(f"   ✓ Indexer reset successfully")
+        print("   ✓ Indexer reset successfully")
         return True
     else:
         print(f"   ✗ Error resetting indexer: {response.status_code}")
@@ -813,7 +809,7 @@ def main():
     # Load configuration
     config = load_config()
     
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Search Endpoint: {config['search_endpoint']}")
     print(f"  Resource Prefix: {config['resource_prefix']}")
     print(f"  Embedding Model: {config['embedding_model']}")
@@ -855,14 +851,14 @@ def main():
     print("\n" + "=" * 60)
     if success:
         print("✅ All resources created successfully!")
-        print(f"\nCreated resources:")
+        print("\nCreated resources:")
         print(f"  - Data source: {config['datasource_name']}")
         print(f"  - Index: {config['index_name']}")
         print(f"  - Skillset: {config['skillset_name']}")
         print(f"  - Indexer: {config['indexer_name']}")
-        print(f"\nNext steps:")
-        print(f"  1. Run the indexer: uv run create_sp_index_resources.py --run")
-        print(f"  2. Check status: uv run create_sp_index_resources.py --status")
+        print("\nNext steps:")
+        print("  1. Run the indexer: uv run create_sp_index_resources.py --run")
+        print("  2. Check status: uv run create_sp_index_resources.py --status")
         print(f"  3. Create a searchIndex knowledge source pointing to '{config['index_name']}'")
     else:
         print("❌ Some resources failed to create. Check errors above.")
