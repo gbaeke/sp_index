@@ -5,6 +5,8 @@
 #     "azure-search-documents>=11.7.0b2",
 #     "azure-identity>=1.15.0",
 #     "python-dotenv>=1.0.0",
+#     "requests>=2.31.0",
+#     "pyjwt>=2.8.0",
 # ]
 # ///
 """
@@ -12,13 +14,18 @@ Query the Knowledge Base using Azure AI Search Agentic Retrieval.
 
 This script sends queries to the knowledge base and retrieves answers
 synthesized from the indexed SharePoint content.
+
+With ACL support: If ENABLE_ACL=true, uses user token for permission filtering.
 """
 
 import json
 import os
 import sys
 from .shared import load_base_env
+import requests
+from dotenv import load_dotenv
 from azure.core.credentials import AzureKeyCredential
+from azure.identity import DefaultAzureCredential
 from azure.search.documents.knowledgebases import KnowledgeBaseRetrievalClient
 from azure.search.documents.knowledgebases.models import (
     KnowledgeBaseMessage,
@@ -42,8 +49,10 @@ def query_knowledge_base(query: str, show_activity: bool = False, show_reference
     # Load configuration
     load_base_env()
     
-    search_endpoint = os.getenv("SEARCH_ENDPOINT")
+    search_endpoint = os.getenv("SEARCH_ENDPOINT", "").rstrip("/")
     api_key = os.getenv("API_KEY")
+    enable_acl = os.getenv("ENABLE_ACL", "false").lower() in ["true", "1", "yes"]
+    api_version = os.getenv("API_VERSION", "2025-11-01-preview")
     
     # Knowledge base and source names
     resource_prefix = os.getenv("RESOURCE_PREFIX", "sp-custom")
@@ -55,7 +64,16 @@ def query_knowledge_base(query: str, show_activity: bool = False, show_reference
         print("Error: Missing SEARCH_ENDPOINT or API_KEY in .env")
         return None
     
-    # Create knowledge base retrieval client
+    # If ACL is enabled, use REST API with user token
+    # SDK doesn't support x-ms-query-source-authorization header yet
+    if enable_acl:
+        return query_with_acl(
+            search_endpoint, api_key, api_version,
+            knowledge_base_name, knowledge_source_name,
+            query, show_activity, show_references, filter_expr
+        )
+    
+    # Without ACL: Use SDK (original behavior)
     kb_client = KnowledgeBaseRetrievalClient(
         endpoint=search_endpoint,
         knowledge_base_name=knowledge_base_name,
