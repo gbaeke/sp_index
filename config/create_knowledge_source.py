@@ -97,7 +97,7 @@ def create_knowledge_source(config):
         # Return JSON if available, else return empty dict
         try:
             return response.json() if response.text else {}
-        except:
+        except ValueError:
             return {}
     else:
         print(f"✗ Error creating knowledge source: {response.status_code}")
