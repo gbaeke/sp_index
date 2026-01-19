@@ -16,13 +16,12 @@ via a knowledge base.
 import os
 import sys
 import json
-import requests
-from dotenv import load_dotenv
+from .shared import load_base_env, validate_config, make_request
 
 
 def load_config():
     """Load configuration from .env file."""
-    load_dotenv()
+    load_base_env()
     
     config = {
         "search_endpoint": os.getenv("SEARCH_ENDPOINT"),
@@ -32,37 +31,13 @@ def load_config():
     }
     
     # Validate required configuration
-    required_fields = ["search_endpoint", "api_key"]
-    missing_fields = [field for field in required_fields if not config.get(field)]
-    if missing_fields:
-        print(f"Error: Missing required configuration: {', '.join(missing_fields)}")
-        sys.exit(1)
+    validate_config(config, ["search_endpoint", "api_key"])
     
     # Derive names
     config["index_name"] = f"{config['resource_prefix']}-index"
     config["knowledge_source_name"] = f"{config['resource_prefix']}-ks"
     
     return config
-
-
-def make_request(config, method, path, body=None):
-    """Make an HTTP request to Azure AI Search."""
-    url = f"{config['search_endpoint']}{path}"
-    params = {"api-version": config["api_version"]}
-    headers = {
-        "api-key": config["api_key"],
-        "Content-Type": "application/json",
-    }
-    
-    response = requests.request(
-        method=method,
-        url=url,
-        params=params,
-        headers=headers,
-        json=body,
-    )
-    
-    return response
 
 
 def create_knowledge_source(config):

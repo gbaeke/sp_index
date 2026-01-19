@@ -17,7 +17,7 @@ synthesized from the indexed SharePoint content.
 import json
 import os
 import sys
-from dotenv import load_dotenv
+from .shared import load_base_env
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.knowledgebases import KnowledgeBaseRetrievalClient
 from azure.search.documents.knowledgebases.models import (
@@ -29,7 +29,7 @@ from azure.search.documents.knowledgebases.models import (
 )
 
 
-def query_knowledge_base(query: str, show_activity: bool = False, show_references: bool = False, filter_expr: str = None):
+def query_knowledge_base(query: str, show_activity: bool = False, show_references: bool = False, filter_expr: str | None = None):
     """Query the knowledge base with a user question.
     
     Args:
@@ -40,7 +40,7 @@ def query_knowledge_base(query: str, show_activity: bool = False, show_reference
     """
     
     # Load configuration
-    load_dotenv()
+    load_base_env()
     
     search_endpoint = os.getenv("SEARCH_ENDPOINT")
     api_key = os.getenv("API_KEY")

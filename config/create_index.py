@@ -21,13 +21,12 @@ The resulting index can be used with a searchIndex knowledge source for agentic 
 import os
 import sys
 import json
-import requests
-from dotenv import load_dotenv
+from .shared import load_base_env, validate_config, make_request
 
 
 def load_config():
     """Load configuration from .env file."""
-    load_dotenv()
+    load_base_env()
     
     config = {
         # Azure AI Search
@@ -56,19 +55,14 @@ def load_config():
     }
     
     # Validate required configuration
-    required_fields = [
+    validate_config(config, [
         "search_endpoint",
         "api_key",
         "connection_string",
         "embedding_endpoint",
         "embedding_key",
         "embedding_deployment",
-    ]
-    
-    missing_fields = [field for field in required_fields if not config.get(field)]
-    if missing_fields:
-        print(f"Error: Missing required configuration: {', '.join(missing_fields)}")
-        sys.exit(1)
+    ])
     
     # Derive resource names
     prefix = config["resource_prefix"]
@@ -78,26 +72,6 @@ def load_config():
     config["indexer_name"] = f"{prefix}-indexer"
     
     return config
-
-
-def make_request(config, method, path, body=None):
-    """Make an HTTP request to Azure AI Search."""
-    url = f"{config['search_endpoint']}{path}"
-    params = {"api-version": config["api_version"]}
-    headers = {
-        "api-key": config["api_key"],
-        "Content-Type": "application/json",
-    }
-    
-    response = requests.request(
-        method=method,
-        url=url,
-        params=params,
-        headers=headers,
-        json=body,
-    )
-    
-    return response
 
 
 def create_datasource(config):
