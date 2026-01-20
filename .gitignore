@@ -22,3 +22,4 @@ build/
 .idea/
 .vscode/
 *.ipynb_checkpoints
+mcp/.msal_token_cache
