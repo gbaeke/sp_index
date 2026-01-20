@@ -41,6 +41,106 @@ from azure.search.documents.knowledgebases.models import (
 )
 
 
+def query_with_acl(
+    search_endpoint: str,
+    api_key: str,
+    api_version: str,
+    knowledge_base_name: str,
+    knowledge_source_name: str,
+    query: str,
+    show_activity: bool,
+    show_references: bool,
+    filter_expr: str | None,
+):
+    """Query the knowledge base using REST with user token for ACL filtering."""
+    credential = DefaultAzureCredential()
+    token = credential.get_token("https://search.azure.com/.default")
+
+    url = f"{search_endpoint}/knowledgebases/{knowledge_base_name}/retrieve"
+    headers = {
+        "Authorization": f"Bearer {token.token}",
+        "x-ms-query-source-authorization": token.token,
+        "Content-Type": "application/json",
+    }
+
+    knowledge_source_params = {
+        "kind": "searchIndex",
+        "knowledgeSourceName": knowledge_source_name,
+        "includeReferences": True,
+        "includeReferenceSourceData": True,
+    }
+    if filter_expr:
+        knowledge_source_params["filterAddOn"] = filter_expr
+
+    body = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": query,
+                    }
+                ],
+            }
+        ],
+        "knowledgeSourceParams": [knowledge_source_params],
+        "includeActivity": True,
+        "retrievalReasoningEffort": {
+            "kind": "low",
+        },
+    }
+
+    print(f"\nQuerying knowledge base '{knowledge_base_name}' (ACL)...")
+    if filter_expr:
+        print(f"Filter: {filter_expr}")
+    print("-" * 60)
+
+    try:
+        response = requests.post(url, params={"api-version": api_version}, headers=headers, json=body)
+        response.raise_for_status()
+        result = response.json()
+    except requests.exceptions.HTTPError as e:
+        print(f"Error querying knowledge base: HTTP {e.response.status_code}")
+        print(f"Response: {e.response.text}")
+        if e.response.status_code == 403:
+            print("Required RBAC: Search Index Data Reader")
+            print("Note: Ensure the search service data plane allows Azure AD auth (authOptions=aadOrApiKey or aadOnly).")
+        return None
+    except Exception as e:
+        print(f"Error querying knowledge base: {e}")
+        return None
+
+    # Display response
+    response_messages = result.get("response", [])
+    if response_messages:
+        print("\n📝 Answer:\n")
+        for resp in response_messages:
+            content_items = resp.get("content", [])
+            for item in content_items:
+                text = item.get("text") if isinstance(item, dict) else None
+                if text:
+                    print(text)
+    else:
+        print("No response received.")
+
+    if show_activity:
+        activity = result.get("activity")
+        if activity:
+            print("\n" + "-" * 60)
+            print("🔍 Activity (reasoning steps):\n")
+            print(json.dumps(activity, indent=2))
+
+    if show_references:
+        references = result.get("references")
+        if references:
+            print("\n" + "-" * 60)
+            print("📚 References:\n")
+            print(json.dumps(references, indent=2))
+
+    return result
+
+
 def query_knowledge_base(query: str, show_activity: bool = False, show_references: bool = False, filter_expr: str | None = None):
     """Query the knowledge base with a user question.
     
