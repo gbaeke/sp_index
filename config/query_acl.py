@@ -16,7 +16,12 @@ import os
 import sys
 import requests
 import jwt
-from .shared import load_base_env
+
+try:
+    from .shared import load_base_env
+except ImportError:
+    from shared import load_base_env
+
 from azure.identity import DefaultAzureCredential
 
 

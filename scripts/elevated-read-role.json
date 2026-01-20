@@ -7,6 +7,6 @@
   ],
   "NotDataActions": [],
   "AssignableScopes": [
-    "/subscriptions/d1d3dadc-bc2a-4495-b8dd-70443d1c70d1/resourceGroups/rg-geba-sp/providers/Microsoft.Search/searchServices/ais-geba-sp"
+    "/subscriptions/d1d3dadc-bc2a-4495-b8dd-70443d1c70d1/resourceGroups/rg-aisearch/providers/Microsoft.Search/searchServices/srch-geba"
   ]
 }

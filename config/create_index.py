@@ -19,7 +19,11 @@ The resulting index can be used with a searchIndex knowledge source for agentic 
 """
 
 import os
-from .shared import load_base_env, validate_config, make_request
+
+try:
+    from .shared import load_base_env, validate_config, make_request
+except ImportError:
+    from shared import load_base_env, validate_config, make_request
 
 
 def load_config():

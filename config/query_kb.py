@@ -21,7 +21,12 @@ With ACL support: If ENABLE_ACL=true, uses user token for permission filtering.
 import json
 import os
 import sys
-from .shared import load_base_env
+
+try:
+    from .shared import load_base_env
+except ImportError:
+    from shared import load_base_env
+
 import requests
 from dotenv import load_dotenv
 from azure.core.credentials import AzureKeyCredential

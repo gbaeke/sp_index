@@ -15,7 +15,11 @@ via a knowledge base.
 
 import os
 import sys
-from .shared import load_base_env, validate_config, make_request
+
+try:
+    from .shared import load_base_env, validate_config, make_request
+except ImportError:
+    from shared import load_base_env, validate_config, make_request
 
 
 def load_config():
