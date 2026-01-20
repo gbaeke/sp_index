@@ -34,11 +34,19 @@ def load_config():
         print("❌ Missing: SEARCH_ENDPOINT")
         sys.exit(1)
     
-    return {
+    config = {
         "search_endpoint": search_endpoint.rstrip("/"),
         "index_name": f"{resource_prefix}-index",
         "api_version": "2025-11-01-preview"
     }
+
+    print("🔍 Config:")
+    print(f"   - Endpoint: {config['search_endpoint']}")
+    print(f"   - Index: {config['index_name']}")
+    print(f"   - API Version: {config['api_version']}")
+    print()
+
+    return config
 
 
 def get_auth_headers():
@@ -50,6 +58,9 @@ def get_auth_headers():
     print("🔑 Token Info:")
     print(f"   User OID: {decoded.get('oid', 'N/A')}")
     print(f"   User: {decoded.get('upn', decoded.get('unique_name', 'N/A'))}")
+    print(f"   Tenant: {decoded.get('tid', 'N/A')}")
+    print(f"   Audience: {decoded.get('aud', 'N/A')}")
+    print(f"   Issuer: {decoded.get('iss', 'N/A')}")
     print(f"   Token expires: {decoded.get('exp', 'N/A')}")
     print()
     
@@ -70,13 +81,23 @@ def get_stats(config):
     }
     
     try:
+        print("📡 Stats request:")
+        print(f"   - URL: {url}")
+        print(f"   - Params: api-version={config['api_version']}")
         response = requests.get(url, params={"api-version": config["api_version"]}, headers=headers)
         response.raise_for_status()
         stats = response.json()
         print(f"📊 Total documents in index: {stats.get('documentCount', 0)}")
         print(f"💾 Storage: {stats.get('storageSize', 0):,} bytes\n")
     except Exception as e:
-        print(f"⚠️  Stats unavailable: {e}\n")
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        body = getattr(getattr(e, "response", None), "text", "")
+        print(f"⚠️  Stats unavailable: {e}")
+        if status:
+            print(f"   - Status: {status}")
+        if body:
+            print(f"   - Body: {body}")
+        print()
 
 
 def query(config):
@@ -89,6 +110,12 @@ def query(config):
     }
     
     headers = get_auth_headers()
+    print("📡 Query request:")
+    print(f"   - URL: {url}")
+    print(f"   - Params: api-version={config['api_version']}")
+    print("   - Headers: Authorization=Bearer <token>, x-ms-query-source-authorization=<token>")
+    print(f"   - Body: {body}")
+    print()
     
     try:
         response = requests.post(url, params={"api-version": config["api_version"]}, headers=headers, json=body)
@@ -147,6 +174,7 @@ def query(config):
         print(f"Response: {e.response.text}")
         if e.response.status_code == 403:
             print("Required RBAC: Search Index Data Reader")
+            print("Note: Ensure the search service data plane allows Azure AD auth (authOptions=aadOrApiKey or aadOnly).")
         sys.exit(1)
     except Exception as e:
         print(f"❌ Error: {e}")
