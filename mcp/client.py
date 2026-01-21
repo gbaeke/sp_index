@@ -10,7 +10,7 @@ from fastmcp import Client
 
 TENANT_ID = os.getenv("ENTRA_TENANT_ID", "484588df-21e4-427c-b2a5-cc39d6a73281")
 CLIENT_ID = os.getenv("ENTRA_CLIENT_ID", "97a67a49-6a56-45aa-a481-d9fc784a9118")
-SCOPE = os.getenv("ENTRA_SCOPE", "https://search.azure.com/.default")
+SCOPE = os.getenv("ENTRA_SCOPE", f"api://{CLIENT_ID}/.default")
 SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000/mcp")
 CACHE_PATH = Path(__file__).resolve().parent / ".msal_token_cache"
 

@@ -8,13 +8,16 @@ from fastmcp.server.dependencies import AccessToken, get_access_token
 from mcp.server.lowlevel.server import request_ctx
 import requests
 from dotenv import load_dotenv
+import msal
 
 
 dotenv_path = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(dotenv_path=dotenv_path)
 
 TENANT_ID = os.getenv("ENTRA_TENANT_ID", "484588df-21e4-427c-b2a5-cc39d6a73281")
-AUDIENCE = os.getenv("ENTRA_AUDIENCE", "https://search.azure.com/")
+CLIENT_ID = os.getenv("ENTRA_CLIENT_ID", "97a67a49-6a56-45aa-a481-d9fc784a9118")
+CLIENT_SECRET = os.getenv("ENTRA_CLIENT_SECRET")
+AUDIENCE = os.getenv("ENTRA_AUDIENCE", f"api://{CLIENT_ID}")
 BASE_URL = os.getenv("MCP_BASE_URL", "http://127.0.0.1:8000")
 
 DEFAULT_ISSUERS = [
@@ -32,6 +35,17 @@ auth_provider = JWTVerifier(
 )
 
 mcp = FastMCP("Azure Search MCP", auth=auth_provider)
+
+# Initialize MSAL Confidential Client for OBO flow
+if not CLIENT_SECRET:
+    print("⚠️  Warning: ENTRA_CLIENT_SECRET not set. OBO flow will fail.")
+
+authority = f"https://login.microsoftonline.com/{TENANT_ID}"
+msal_app = msal.ConfidentialClientApplication(
+    client_id=CLIENT_ID,
+    client_credential=CLIENT_SECRET,
+    authority=authority,
+) if CLIENT_SECRET else None
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
@@ -67,6 +81,54 @@ def post_with_retry(
     return response
 
 
+def exchange_token_obo(user_token: str) -> tuple[str | None, dict | None]:
+    """
+    Exchange user's app token for Azure AI Search token using OBO flow.
+    
+    Args:
+        user_token: JWT token with aud=api://97a67a49-6a56-45aa-a481-d9fc784a9118
+        
+    Returns:
+        Tuple of (search_token, error_dict)
+    """
+    if not msal_app:
+        return (None, {
+            "error": "server_misconfigured",
+            "error_description": "ENTRA_CLIENT_SECRET not configured"
+        })
+    
+    scopes = ["https://search.azure.com/.default"]
+    
+    result = msal_app.acquire_token_on_behalf_of(
+        user_assertion=user_token,
+        scopes=scopes
+    )
+    
+    if "access_token" in result:
+        if os.getenv("MCP_DEBUG"):
+            print(f"✅ OBO exchange successful for Azure AI Search")
+        return (result["access_token"], None)
+    
+    error = result.get("error", "unknown_error")
+    error_desc = result.get("error_description", "Token exchange failed")
+    
+    error_response = {
+        "error": error,
+        "error_description": error_desc
+    }
+    
+    if error == "interaction_required":
+        claims = result.get("claims")
+        if claims:
+            error_response["claims"] = claims
+            error_response["hint"] = "User must re-authenticate with MFA"
+    
+    if os.getenv("MCP_DEBUG"):
+        print(f"❌ OBO exchange failed: {error} - {error_desc}")
+    
+    return (None, error_response)
+
+
 @mcp.tool
 def search(query: str, top: int = 5) -> dict:
     """Query Azure AI Search with ACL filtering."""
@@ -86,6 +148,15 @@ def search(query: str, top: int = 5) -> dict:
 
     if not token_string:
         return {"authenticated": False, "error": "User token unavailable."}
+
+    # Exchange app token for Azure AI Search token via OBO
+    search_token, error = exchange_token_obo(token_string)
+    if error:
+        return {
+            "authenticated": True,
+            "error": "Token exchange failed",
+            "details": error
+        }
 
     search_endpoint = os.getenv("SEARCH_ENDPOINT", "").rstrip("/")
     api_key = os.getenv("API_KEY")
@@ -107,7 +178,7 @@ def search(query: str, top: int = 5) -> dict:
     }
     headers = {
         "api-key": api_key,
-        "x-ms-query-source-authorization": token_string,
+        "x-ms-query-source-authorization": search_token,
         "Content-Type": "application/json",
     }
 
