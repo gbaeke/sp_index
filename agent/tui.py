@@ -482,13 +482,18 @@ class AgentTUI(App):
         """Run a query against the agent."""
         status_bar = self.query_one("#status-bar", StatusBar)
         status_bar.status = "Thinking..."
+        sources_panel = self.query_one(SourcesPanel)
+        # Clear sources while the query runs to avoid stale results
+        sources_panel.update_sources([])
 
         try:
             response = await self._query_agent(query)
 
             # Update sources panel
-            sources_panel = self.query_one(SourcesPanel)
-            sources_panel.update_sources(response.documents)
+            if response.documents:
+                sources_panel.update_sources(response.documents)
+            else:
+                sources_panel.update_sources([])
             self.documents = response.documents
 
             # Build response text with source references
