@@ -511,8 +511,18 @@ class AgentTUI(App):
         ):
             result = await agent.run(query, tools=mcp_tool)
 
-            # Store raw response for toggle
-            self.raw_responses.append(str(result))
+            # Store detailed debug info for toggle
+            debug_lines = [f"Result type: {type(result).__name__}"]
+            for attr in dir(result):
+                if not attr.startswith("_"):
+                    try:
+                        val = getattr(result, attr)
+                        if not callable(val):
+                            val_str = str(val)[:200]
+                            debug_lines.append(f"{attr}: {val_str}")
+                    except Exception as e:
+                        debug_lines.append(f"{attr}: <error: {e}>")
+            self.raw_responses.append("\n".join(debug_lines))
 
             # Extract documents from tool calls/results
             documents = self._extract_documents(result)
@@ -520,34 +530,55 @@ class AgentTUI(App):
             return AgentResponse(text=result.text, documents=documents)
 
     def _extract_documents(self, result: Any) -> list[Document]:
-        """Extract documents from agent result."""
+        """Extract documents from agent result messages/tool outputs."""
         documents: list[Document] = []
 
-        # Try to extract from tool results in the result object
-        if hasattr(result, "tool_results"):
-            for tool_result in result.tool_results:
-                docs = self._parse_search_results(tool_result)
-                documents.extend(docs)
+        def collect_payloads(obj: Any, payloads: list[dict]) -> None:
+            if obj is None:
+                return
+            if isinstance(obj, dict):
+                if "value" in obj and isinstance(obj["value"], list):
+                    payloads.append(obj)
+                for val in obj.values():
+                    collect_payloads(val, payloads)
+                return
+            if isinstance(obj, (list, tuple)):
+                for item in obj:
+                    collect_payloads(item, payloads)
+                return
+            if isinstance(obj, str):
+                if "\"value\"" in obj or "metadata_spo_item_weburi" in obj:
+                    try:
+                        parsed = json.loads(obj)
+                    except json.JSONDecodeError:
+                        return
+                    collect_payloads(parsed, payloads)
+                return
+            if hasattr(obj, "__dict__"):
+                for val in vars(obj).values():
+                    collect_payloads(val, payloads)
 
-        # Also check messages for tool results
-        if hasattr(result, "messages"):
-            for msg in result.messages:
-                if hasattr(msg, "content") and isinstance(msg.content, list):
-                    for content in msg.content:
-                        if hasattr(content, "text"):
-                            docs = self._parse_search_results(content.text)
-                            documents.extend(docs)
+        payloads: list[dict] = []
+        # Walk messages and raw representations
+        collect_payloads(getattr(result, "messages", None), payloads)
+        collect_payloads(getattr(result, "raw_representation", None), payloads)
+        collect_payloads(getattr(result, "raw_response", None), payloads)
+        collect_payloads(getattr(result, "output", None), payloads)
 
-        # Check raw_response if available
-        if hasattr(result, "raw_response"):
-            raw = result.raw_response
-            if isinstance(raw, dict) and "value" in raw:
-                for item in raw["value"]:
-                    doc = self._parse_document(item)
-                    if doc:
-                        documents.append(doc)
+        for payload in payloads:
+            docs = self._parse_search_results(payload)
+            documents.extend(docs)
 
-        return documents
+        # Deduplicate by URL/title
+        seen = set()
+        unique_docs = []
+        for doc in documents:
+            key = doc.url or doc.title
+            if key and key not in seen:
+                seen.add(key)
+                unique_docs.append(doc)
+
+        return unique_docs
 
     def _parse_search_results(self, data: Any) -> list[Document]:
         """Parse search results from various formats."""
@@ -622,7 +653,9 @@ class AgentTUI(App):
         self.show_raw = not self.show_raw
         if self.show_raw and self.raw_responses:
             chat_panel = self.query_one("#chat-panel", VerticalScroll)
-            chat_panel.mount(MessageBox(f"[dim]Raw: {self.raw_responses[-1][:500]}...[/dim]", "system"))
+            # Show more of the raw response for debugging
+            raw_text = self.raw_responses[-1]
+            chat_panel.mount(MessageBox(f"[dim]{raw_text[:2000]}[/dim]", "system"))
             chat_panel.scroll_end()
 
 def main() -> None:
