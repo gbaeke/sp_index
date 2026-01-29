@@ -42,6 +42,15 @@ On first run, the CLI will prompt you to complete device code authentication.
 After that, ask questions at the prompt; the agent will use the MCP tool to
 retrieve relevant documents and answer accordingly.
 
+## TUI (Textual)
+
+Run the Textual interface with streaming and top-3 sources panel:
+
+```bash
+uv run agent/tui.py
+```
+
+
 ## Troubleshooting
 
 If you see a device-code error like:

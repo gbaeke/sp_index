@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant U as User
+    participant T as Textual TUI
+    participant A as Agent Framework
+    participant M as MCP Server
+    participant S as Azure AI Search
+    participant I as Search Indexer
+    participant SP as SharePoint
+
+    U->>T: Ask question
+    T->>A: Send prompt (stream)
+    A->>M: Call MCP tool (search)
+    M->>S: Query with ACL token
+    S-->>M: Search results
+    M-->>A: Tool response
+    A-->>T: Stream answer
+    T-->>U: Display response
+
+    SP-->>I: Content changes
+    I-->>S: Index updates

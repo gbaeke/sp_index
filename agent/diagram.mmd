@@ -1,0 +1,14 @@
+flowchart LR
+    U[User] <-->|questions / answers| TUI[Textual TUI]
+    TUI <-->|prompt + stream tokens| Agent[Agent Framework]
+
+    Agent -->|tool call: search| MCP[MCP Server]
+    MCP -->|ACL query| Search[Azure AI Search]
+    Search -->|results| MCP
+    MCP -->|tool result| Agent
+
+    Agent -->|final response| TUI
+
+    SharePoint[SharePoint Content] -->|crawl + ingest| Indexer[Azure AI Search Indexer]
+    Indexer -->|build/update| Index[(Azure AI Search Index)]
+    Search -->|query index| Index
