@@ -180,27 +180,27 @@ Screen {
     width: 3fr;
     height: 100%;
     border: solid $border-color;
-    margin: 1;
+    margin: 1 0 1 1;
     padding: 0;
 }
 
 #chat-scroll {
     height: 1fr;
-    padding: 1;
+    padding: 1 1 0 1;
 }
 
 #sources-panel {
     width: 1fr;
-    min-width: 30;
+    min-width: 28;
     height: 100%;
     border: solid $border-color;
     margin: 1 1 1 0;
-    padding: 1;
+    padding: 1 1 0 1;
 }
 
 #sources-header {
     height: auto;
-    margin-bottom: 1;
+    margin-bottom: 0;
     color: white;
 }
 
@@ -210,7 +210,7 @@ Screen {
 
 .source-item {
     height: auto;
-    margin-bottom: 1;
+    margin: 0 0 1 0;
     padding: 0;
 }
 
@@ -221,6 +221,7 @@ Screen {
 .source-snippet {
     height: auto;
     margin-left: 2;
+    margin-top: 0;
 }
 
 .no-sources {
@@ -230,7 +231,7 @@ Screen {
 #bottom-area {
     height: auto;
     width: 100%;
-    padding: 0 1;
+    padding: 1 1 1 1;
 }
 
 #status-bar {
@@ -242,8 +243,8 @@ Screen {
 #input-container {
     height: auto;
     background: $surface-light;
-    padding: 1;
-    margin-bottom: 1;
+    padding: 1 1 0 1;
+    margin-bottom: 0;
 }
 
 #query-input {
@@ -258,7 +259,7 @@ Screen {
 
 .message-box {
     height: auto;
-    margin: 1 0;
+    margin: 0 0 1 0;
     padding: 1;
     border: solid $border-color;
 }
@@ -279,7 +280,7 @@ Screen {
 
 .role-label {
     height: auto;
-    margin-bottom: 1;
+    margin-bottom: 0;
 }
 
 .message-content {
@@ -339,9 +340,6 @@ class AgentTUI(App):
     async def on_mount(self) -> None:
         """Initialize the app on mount."""
         self.query_one("#query-input", Input).focus()
-        # Add initial message
-        chat_panel = self.query_one("#chat-panel", VerticalScroll)
-        await chat_panel.mount(MessageBox("[bold]Cleared.[/bold] Ask a question to begin.", "system"))
         # Start authentication
         self.authenticate()
 
@@ -394,8 +392,22 @@ class AgentTUI(App):
         if "user_code" not in flow:
             raise RuntimeError("Failed to initiate device code flow.")
 
-        # Show device code message
-        self._add_system_message(f"[bold yellow]{flow['message']}[/bold yellow]")
+        # Show device code message and open browser to the verification URL
+        verification_uri = flow.get("verification_uri") or flow.get("verification_url")
+        user_code = flow.get("user_code")
+        if verification_uri:
+            try:
+                webbrowser.open(verification_uri)
+            except Exception:
+                pass
+        if verification_uri and user_code:
+            self._add_system_message(
+                f"[bold yellow]Sign in to continue[/bold yellow]\n"
+                f"Go to: {verification_uri}\n"
+                f"Code: [bold]{user_code}[/bold]"
+            )
+        else:
+            self._add_system_message(f"[bold yellow]{flow['message']}[/bold yellow]")
 
         result = app.acquire_token_by_device_flow(flow)
         if "access_token" not in result:
