@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import msal
+import jwt
 from dotenv import load_dotenv
 from rich.markdown import Markdown
 from rich.text import Text
@@ -148,11 +149,14 @@ class SourcesPanel(Container):
 
 
 class StatusBar(Static):
-    """Status bar showing current state."""
+    """Status bar showing current state and user."""
 
     status = reactive("Idle")
+    user = reactive("")
 
     def render(self) -> Text:
+        if self.user:
+            return Text(f"{self.status}  •  Signed in as {self.user}")
         return Text(self.status)
 
 
@@ -351,6 +355,7 @@ class AgentTUI(App):
         try:
             token = self._acquire_token_sync()
             self.token = token
+            self._set_user_from_token(token)
             self._set_status("Idle")
             self._add_system_message("[green]Authenticated.[/green] Ask a question to begin.")
         except Exception as e:
@@ -361,6 +366,25 @@ class AgentTUI(App):
         """Update status bar from any thread."""
         def update():
             self.query_one("#status-bar", StatusBar).status = status
+        self.call_from_thread(update)
+
+    def _set_user_from_token(self, token: str) -> None:
+        """Extract and display signed-in user from token."""
+        try:
+            decoded = jwt.decode(token, options={"verify_signature": False})
+        except Exception:
+            return
+        user = (
+            decoded.get("preferred_username")
+            or decoded.get("upn")
+            or decoded.get("unique_name")
+            or decoded.get("name")
+        )
+        if not user:
+            return
+
+        def update():
+            self.query_one("#status-bar", StatusBar).user = user
         self.call_from_thread(update)
 
     def _add_system_message(self, text: str) -> None:
