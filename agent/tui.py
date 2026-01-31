@@ -20,6 +20,7 @@ using the MCP-backed agent with Entra ID authentication.
 
 import json
 import os
+import time
 import webbrowser
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -454,6 +455,17 @@ class AgentTUI(App):
         if cache.has_state_changed:
             CACHE_PATH.write_text(cache.serialize())
 
+    def _is_token_expired(self, token: str, skew_seconds: int = 60) -> bool:
+        """Check if JWT access token is expired or about to expire."""
+        try:
+            decoded = jwt.decode(token, options={"verify_signature": False})
+        except Exception:
+            return True
+        exp = decoded.get("exp")
+        if not exp:
+            return True
+        return (exp - skew_seconds) <= int(time.time())
+
     @on(Input.Submitted, "#query-input")
     async def handle_query(self, event: Input.Submitted) -> None:
         """Handle query submission."""
@@ -487,6 +499,11 @@ class AgentTUI(App):
         sources_panel.update_sources([])
 
         try:
+            # Refresh token if it's expired or close to expiring
+            if not self.token or self._is_token_expired(self.token):
+                self._set_status("Refreshing token...")
+                self.token = self._acquire_token_sync()
+                self._set_user_from_token(self.token)
             response = await self._query_agent(query)
 
             # Update sources panel

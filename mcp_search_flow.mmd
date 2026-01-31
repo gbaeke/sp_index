@@ -1,0 +1,6 @@
+flowchart TD
+  A[Client calls MCP Search tool] --> B{Authorization header token?}
+  B -- No --> C[Reject request / return auth error]
+  B -- Yes --> D[Exchange token for Azure AI Search-scoped token]
+  D --> E[Call Azure AI Search with scoped token in special header]
+  E --> F[Return search results to client]
