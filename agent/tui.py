@@ -20,6 +20,7 @@ using the MCP-backed agent with Entra ID authentication.
 
 import json
 import os
+import threading
 import time
 import webbrowser
 from dataclasses import dataclass, field
@@ -60,6 +61,7 @@ CHAT_API_VERSION = (
 )
 
 CACHE_PATH = Path(__file__).resolve().parent / ".msal_token_cache"
+ACTIVE_ACCOUNT_PATH = Path(__file__).resolve().parent / ".msal_active_account.json"
 
 
 @dataclass
@@ -316,6 +318,9 @@ class AgentTUI(App):
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit"),
         Binding("ctrl+l", "clear", "Clear"),
+        Binding("ctrl+u", "switch_user", "Switch User"),
+        Binding("ctrl+s", "select_cached_user", "Select Cached User"),
+        Binding("ctrl+o", "sign_out", "Sign Out"),
         Binding("escape", "cancel", "Cancel"),
         Binding("f2", "toggle_raw", "Toggle Raw"),
         Binding("ctrl+p", "palette", "palette"),
@@ -328,6 +333,8 @@ class AgentTUI(App):
         self.token: str | None = None
         self.documents: list[Document] = []
         self.raw_responses: list[str] = []
+        self.active_account_id: str | None = self._load_active_account_id()
+        self.pending_account_selection: list[dict] | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -367,7 +374,7 @@ class AgentTUI(App):
         """Update status bar from any thread."""
         def update():
             self.query_one("#status-bar", StatusBar).status = status
-        self.call_from_thread(update)
+        self._run_on_app_thread(update)
 
     def _set_user_from_token(self, token: str) -> None:
         """Extract and display signed-in user from token."""
@@ -375,6 +382,7 @@ class AgentTUI(App):
             decoded = jwt.decode(token, options={"verify_signature": False})
         except Exception:
             return
+        self._set_active_account_id_from_claims(decoded)
         user = (
             decoded.get("preferred_username")
             or decoded.get("upn")
@@ -386,7 +394,13 @@ class AgentTUI(App):
 
         def update():
             self.query_one("#status-bar", StatusBar).user = user
-        self.call_from_thread(update)
+        self._run_on_app_thread(update)
+
+    def _clear_user(self) -> None:
+        """Clear signed-in user from status bar."""
+        def update():
+            self.query_one("#status-bar", StatusBar).user = ""
+        self._run_on_app_thread(update)
 
     def _add_system_message(self, text: str) -> None:
         """Add a system message to chat."""
@@ -394,9 +408,16 @@ class AgentTUI(App):
             chat_panel = self.query_one("#chat-panel", VerticalScroll)
             chat_panel.mount(MessageBox(text, "system"))
             chat_panel.scroll_end()
-        self.call_from_thread(add)
+        self._run_on_app_thread(add)
 
-    def _acquire_token_sync(self) -> str:
+    def _run_on_app_thread(self, func) -> None:
+        """Run a UI update on the app thread safely."""
+        if getattr(self, "_thread_id", None) == threading.get_ident():
+            func()
+        else:
+            self.call_from_thread(func)
+
+    def _acquire_token_sync(self, force_device_flow: bool = False) -> str:
         """Synchronously acquire token with device code flow."""
         cache = self._load_token_cache()
         authority = f"https://login.microsoftonline.com/{TENANT_ID}"
@@ -406,12 +427,15 @@ class AgentTUI(App):
             token_cache=cache,
         )
 
-        accounts = app.get_accounts()
-        if accounts:
-            result = app.acquire_token_silent([SCOPE], account=accounts[0])
-            if result and "access_token" in result:
-                self._save_token_cache(cache)
-                return result["access_token"]
+        if not force_device_flow:
+            accounts = app.get_accounts()
+            account = self._select_active_account(accounts) or (accounts[0] if accounts else None)
+            if account:
+                result = app.acquire_token_silent([SCOPE], account=account)
+                if result and "access_token" in result:
+                    self._save_token_cache(cache)
+                    self._set_active_account_from_account(account)
+                    return result["access_token"]
 
         flow = app.initiate_device_flow(scopes=[SCOPE])
         if "user_code" not in flow:
@@ -441,6 +465,7 @@ class AgentTUI(App):
             )
 
         self._save_token_cache(cache)
+        self._set_active_account_from_result(app, result)
         return result["access_token"]
 
     def _load_token_cache(self) -> msal.SerializableTokenCache:
@@ -455,6 +480,60 @@ class AgentTUI(App):
         if cache.has_state_changed:
             CACHE_PATH.write_text(cache.serialize())
 
+    def _load_active_account_id(self) -> str | None:
+        """Load active account id from disk."""
+        if not ACTIVE_ACCOUNT_PATH.exists():
+            return None
+        try:
+            data = json.loads(ACTIVE_ACCOUNT_PATH.read_text())
+        except Exception:
+            return None
+        return data.get("home_account_id")
+
+    def _save_active_account_id(self, home_account_id: str | None) -> None:
+        """Persist active account id to disk."""
+        if not home_account_id:
+            if ACTIVE_ACCOUNT_PATH.exists():
+                ACTIVE_ACCOUNT_PATH.unlink()
+            return
+        ACTIVE_ACCOUNT_PATH.write_text(json.dumps({"home_account_id": home_account_id}))
+
+    def _set_active_account_from_account(self, account: dict) -> None:
+        """Persist active account from MSAL account dict."""
+        home_account_id = account.get("home_account_id")
+        if home_account_id:
+            self.active_account_id = home_account_id
+            self._save_active_account_id(home_account_id)
+
+    def _set_active_account_from_result(self, app: msal.PublicClientApplication, result: dict) -> None:
+        """Persist active account based on device flow result."""
+        claims = result.get("id_token_claims") or {}
+        username = claims.get("preferred_username") or claims.get("upn")
+        if username:
+            accounts = app.get_accounts(username=username)
+        else:
+            accounts = app.get_accounts()
+        if accounts:
+            self._set_active_account_from_account(accounts[0])
+
+    def _set_active_account_id_from_claims(self, claims: dict) -> None:
+        """Set active account id from token claims (oid + tid)."""
+        oid = claims.get("oid")
+        tid = claims.get("tid")
+        if oid and tid:
+            home_account_id = f"{oid}.{tid}"
+            self.active_account_id = home_account_id
+            self._save_active_account_id(home_account_id)
+
+    def _select_active_account(self, accounts: list[dict]) -> dict | None:
+        """Find the active account in a list of MSAL accounts."""
+        if not self.active_account_id:
+            return None
+        for account in accounts:
+            if account.get("home_account_id") == self.active_account_id:
+                return account
+        return None
+
     def _is_token_expired(self, token: str, skew_seconds: int = 60) -> bool:
         """Check if JWT access token is expired or about to expire."""
         try:
@@ -466,6 +545,75 @@ class AgentTUI(App):
             return True
         return (exp - skew_seconds) <= int(time.time())
 
+    @work(thread=True)
+    def action_switch_user(self) -> None:
+        """Switch to another user by forcing device flow sign-in."""
+        self._set_status("Switching user...")
+        self.pending_account_selection = None
+        self._add_system_message("[yellow]Sign in with the account you want to use.[/yellow]")
+        self.token = self._acquire_token_sync(force_device_flow=True)
+        self._set_user_from_token(self.token)
+        self._add_system_message("[green]Switched user.[/green]")
+        self._set_status("Idle")
+
+    @work(thread=True)
+    def action_select_cached_user(self) -> None:
+        """Select a user from cached accounts."""
+        self._set_status("Selecting cached user...")
+        cache = self._load_token_cache()
+        authority = f"https://login.microsoftonline.com/{TENANT_ID}"
+        app = msal.PublicClientApplication(
+            client_id=CLIENT_ID,
+            authority=authority,
+            token_cache=cache,
+        )
+
+        accounts = app.get_accounts()
+        if not accounts:
+            self._add_system_message("[yellow]No cached accounts available.[/yellow]")
+            self._set_status("Idle")
+            return
+
+        lines = ["[bold]Select a cached account:[/bold]"]
+        for i, account in enumerate(accounts, 1):
+            username = account.get("username") or account.get("preferred_username") or "(unknown)"
+            lines.append(f"  [bold]{i}.[/bold] {username}")
+        lines.append("\nEnter the number in the input box and press Enter.")
+        self.pending_account_selection = accounts
+        self._add_system_message("\n".join(lines))
+        self._set_status("Idle")
+
+    @work(thread=True)
+    def action_sign_out(self) -> None:
+        """Sign out the active user and clear cached account."""
+        self._set_status("Signing out...")
+        self.pending_account_selection = None
+        cache = self._load_token_cache()
+        authority = f"https://login.microsoftonline.com/{TENANT_ID}"
+        app = msal.PublicClientApplication(
+            client_id=CLIENT_ID,
+            authority=authority,
+            token_cache=cache,
+        )
+
+        accounts = app.get_accounts()
+        active = self._select_active_account(accounts)
+        if active:
+            app.remove_account(active)
+            self._save_token_cache(cache)
+        else:
+            self._add_system_message("[yellow]No active account to sign out.[/yellow]")
+
+        if CACHE_PATH.exists() and not app.get_accounts():
+            CACHE_PATH.unlink()
+
+        self._save_active_account_id(None)
+        self.active_account_id = None
+        self.token = None
+        self._clear_user()
+        self._add_system_message("[green]Signed out.[/green]")
+        self._set_status("Idle")
+
     @on(Input.Submitted, "#query-input")
     async def handle_query(self, event: Input.Submitted) -> None:
         """Handle query submission."""
@@ -473,6 +621,11 @@ class AgentTUI(App):
         query = input_widget.value.strip()
 
         if not query:
+            return
+
+        if self.pending_account_selection is not None:
+            await self._handle_account_selection(query)
+            input_widget.value = ""
             return
 
         if not self.token:
@@ -488,6 +641,42 @@ class AgentTUI(App):
         chat_panel.scroll_end()
         
         self.run_query(query)
+
+    async def _handle_account_selection(self, selection: str) -> None:
+        """Handle selection input for cached accounts."""
+        accounts = self.pending_account_selection or []
+        self.pending_account_selection = None
+        try:
+            idx = int(selection) - 1
+        except ValueError:
+            self._add_system_message("[red]Invalid selection. Use a number from the list.[/red]")
+            return
+
+        if idx < 0 or idx >= len(accounts):
+            self._add_system_message("[red]Selection out of range.[/red]")
+            return
+
+        account = accounts[idx]
+        cache = self._load_token_cache()
+        authority = f"https://login.microsoftonline.com/{TENANT_ID}"
+        app = msal.PublicClientApplication(
+            client_id=CLIENT_ID,
+            authority=authority,
+            token_cache=cache,
+        )
+
+        result = app.acquire_token_silent([SCOPE], account=account)
+        if result and "access_token" in result:
+            self._save_token_cache(cache)
+            self._set_active_account_from_account(account)
+            self.token = result["access_token"]
+            self._set_user_from_token(self.token)
+            self._add_system_message("[green]Switched to selected user.[/green]")
+            return
+
+        self._add_system_message(
+            "[yellow]Cached token unavailable. Use Switch User to sign in again.[/yellow]"
+        )
 
     @work(exclusive=True)
     async def run_query(self, query: str) -> None:

@@ -23,3 +23,4 @@ build/
 .vscode/
 *.ipynb_checkpoints
 mcp/.msal_token_cache
+agent/.msal_*
