@@ -333,6 +333,9 @@ uv run query_elevated.py
 
 # Inspect ACL metadata in documents
 uv run inspect_acls.py
+
+# Lookup a group by ID and list members
+uv run lookup_group.py <group-id>
 ```
 
 **ACL Query Behavior:**

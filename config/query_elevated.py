@@ -116,10 +116,8 @@ def query(config):
             
             if group_ids:
                 print(f"   👥 GroupIds: {len(group_ids)} entries")
-                for gid in group_ids[:2]:
+                for gid in group_ids:
                     print(f"      {gid}")
-                if len(group_ids) > 2:
-                    print(f"      ... +{len(group_ids) - 2} more")
             else:
                 print("   ⚠️  GroupIds: empty")
             
