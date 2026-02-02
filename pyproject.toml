@@ -6,11 +6,11 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "azure-search-documents>=11.7.0b2",
-    "azure-core>=1.30.0",
-    "fastmcp>=0.10.0",
+    "azure-core>=1.38.0",
+    "fastmcp>=2.14.4",
     "msal>=1.25.0",
     "pyjwt>=2.8.0",
-    "cryptography>=41.0.0",
+    "cryptography>=46.0.4",
     "python-dotenv>=1.0.0",
     "requests>=2.31.0",
 ]
@@ -22,4 +22,6 @@ setup-foundry = "setup_foundry_config:main"
 verify = "verify_setup:main"
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "safety>=3.7.0",
+]
